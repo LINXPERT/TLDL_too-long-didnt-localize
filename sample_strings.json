@@ -1,0 +1,37 @@
+{
+  "en": {
+    "welcome_message": "Welcome, {player_name}! Ready to begin your quest?",
+    "menu_start": "Start Game",
+    "menu_settings": "Settings",
+    "menu_quit": "Quit",
+    "dialogue_npc_greeting": "Hello there, traveler. How can I help you today?",
+    "item_sword_name": "Iron Sword",
+    "item_sword_desc": "A sturdy blade forged for battle.",
+    "error_save_failed": "Failed to save game. Please try again.",
+    "hud_health_label": "HP",
+    "quest_complete": "Quest complete! You earned {xp_amount} XP."
+  },
+  "fr": {
+    "welcome_message": "Bienvenue, {player_name} ! Prêt à commencer ta quête ?",
+    "menu_start": "Commencer",
+    "menu_settings": "Paramètres",
+    "dialogue_npc_greeting": "Bonjour voyageur, comment puis-je vous aider aujourd'hui ?",
+    "item_sword_name": "Épée en fer",
+    "item_sword_desc": "Une lame robuste, forgée pour le combat, capable de traverser n'importe quelle armure ennemie sans effort",
+    "error_save_failed": "Échec de la sauvegarde. Veuillez réessayer.",
+    "hud_health_label": "PV",
+    "quest_complete": "Quête terminée ! Vous avez gagné de l'expérience."
+  },
+  "es": {
+    "welcome_message": "¡Bienvenido, {player_name}! ¿Listo para comenzar tu aventura?",
+    "menu_start": "Iniciar juego",
+    "menu_settings": "Ajustes",
+    "menu_quit": "Salir",
+    "dialogue_npc_greeting": "Hola, viajero. ¿Cómo puedo ayudarte hoy?",
+    "item_sword_name": "Espada de hierro",
+    "item_sword_desc": "Una espada resistente forjada para la batalla.",
+    "error_save_failed": "Error al guardar la partida. Inténtalo de nuevo.",
+    "hud_health_label": "PV",
+    "quest_complete": "¡Misión completada! Ganaste {xp_amount} XP."
+  }
+}
