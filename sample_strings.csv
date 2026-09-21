@@ -1,0 +1,6 @@
+key,en,fr,es
+welcome_message,"Welcome, {player_name}!","Bienvenue, {player_name} !","¡Bienvenido, {player_name}!"
+menu_start,Start Game,Commencer,Iniciar juego
+menu_quit,Quit,,Salir
+hud_health_label,HP,PV,PV
+quest_complete,"Quest complete! You earned {xp_amount} XP.","Quête terminée !","¡Misión completada! Ganaste {xp_amount} XP."

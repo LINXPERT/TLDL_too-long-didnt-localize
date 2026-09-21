@@ -3,16 +3,19 @@
 TLDL - Too Long, Didn't Localize
 
 Lazy solutions for localization QA.
-Checks a game strings file (JSON) across languages for:
+Checks a game strings file (JSON or CSV) across languages for:
   - Missing translations (keys present in the base language but absent elsewhere)
+  - Orphaned keys (keys present in a language but absent from the base)
   - Placeholder mismatches (e.g. {player_name} present in one language but not another)
   - Text length overflow (translated string is much longer than the base -> may not fit UI)
 
 Usage:
     python tldl.py sample_strings.json --base en --max-ratio 1.35
+    python tldl.py sample_strings.csv --base en
 """
 
 import json
+import csv
 import re
 import sys
 import argparse
@@ -21,9 +24,39 @@ from collections import defaultdict
 PLACEHOLDER_PATTERN = re.compile(r"\{[a-zA-Z0-9_]+\}")
 
 
-def load_strings(path):
+def load_json(path):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def load_csv(path):
+    """
+    Expected CSV format:
+        key,en,fr,es
+        welcome_message,"Welcome!","Bienvenue !","Bienvenido!"
+
+    First column is the string key, remaining columns are language codes.
+    Returns the same nested dict shape as load_json: {lang: {key: text}}.
+    """
+    data = defaultdict(dict)
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        reader = csv.reader(f)
+        header = next(reader)
+        key_col, lang_cols = header[0], header[1:]
+        for row in reader:
+            if not row:
+                continue
+            key = row[0]
+            for lang, value in zip(lang_cols, row[1:]):
+                if value != "":
+                    data[lang][key] = value
+    return dict(data)
+
+
+def load_strings(path):
+    if path.lower().endswith(".csv"):
+        return load_csv(path)
+    return load_json(path)
 
 
 def get_placeholders(text):
@@ -31,7 +64,7 @@ def get_placeholders(text):
 
 
 def check_missing_keys(data, base_lang):
-    """Return dict: lang -> list of missing keys (present in base, absent in lang)."""
+    """Return dict: lang -> list of keys present in base but absent in lang."""
     base_keys = set(data[base_lang].keys())
     missing = defaultdict(list)
     for lang, strings in data.items():
@@ -41,6 +74,23 @@ def check_missing_keys(data, base_lang):
         for key in sorted(base_keys - lang_keys):
             missing[lang].append(key)
     return missing
+
+
+def check_orphaned_keys(data, base_lang):
+    """Return dict: lang -> list of keys present in lang but absent from base.
+
+    These are usually leftovers: a string that got removed from the base
+    language (or renamed) but never cleaned up in the translated files.
+    """
+    base_keys = set(data[base_lang].keys())
+    orphaned = defaultdict(list)
+    for lang, strings in data.items():
+        if lang == base_lang:
+            continue
+        lang_keys = set(strings.keys())
+        for key in sorted(lang_keys - base_keys):
+            orphaned[lang].append(key)
+    return orphaned
 
 
 def check_placeholder_mismatches(data, base_lang):
@@ -80,7 +130,7 @@ def check_length_overflow(data, base_lang, max_ratio):
     return overflow
 
 
-def print_report(missing, mismatches, overflow, max_ratio):
+def print_report(missing, orphaned, mismatches, overflow, max_ratio):
     total_issues = 0
 
     print("=" * 60)
@@ -96,7 +146,16 @@ def print_report(missing, mismatches, overflow, max_ratio):
                 print(f"  [{lang}] missing key: '{key}'")
                 total_issues += 1
 
-    print("\n[2] PLACEHOLDER MISMATCHES")
+    print("\n[2] ORPHANED KEYS (in translation but not in base)")
+    if not any(orphaned.values()):
+        print("  None found. Nice.")
+    else:
+        for lang, keys in orphaned.items():
+            for key in keys:
+                print(f"  [{lang}] orphaned key: '{key}' (not in base language)")
+                total_issues += 1
+
+    print("\n[3] PLACEHOLDER MISMATCHES")
     if not any(mismatches.values()):
         print("  None found. Nice.")
     else:
@@ -112,7 +171,7 @@ def print_report(missing, mismatches, overflow, max_ratio):
                 print(f"  [{lang}] key '{key}': {', '.join(detail)}")
                 total_issues += 1
 
-    print(f"\n[3] LENGTH OVERFLOW (ratio > {max_ratio}x base length)")
+    print(f"\n[4] LENGTH OVERFLOW (ratio > {max_ratio}x base length)")
     if not any(overflow.values()):
         print("  None found. Nice.")
     else:
@@ -131,12 +190,27 @@ def print_report(missing, mismatches, overflow, max_ratio):
     return total_issues
 
 
+def run_checks(data, base_lang, max_ratio):
+    """Run all checks and return (missing, orphaned, mismatches, overflow). Used by both the CLI and tests."""
+    missing = check_missing_keys(data, base_lang)
+    orphaned = check_orphaned_keys(data, base_lang)
+    mismatches = check_placeholder_mismatches(data, base_lang)
+    overflow = check_length_overflow(data, base_lang, max_ratio)
+    return missing, orphaned, mismatches, overflow
+
+
 def main():
-    parser = argparse.ArgumentParser(description="TLDL - Too Long, Didn't Localize. Checks game localization strings for common issues.")
-    parser.add_argument("file", help="Path to JSON file of localized strings (lang -> {key: text})")
+    parser = argparse.ArgumentParser(
+        description="TLDL - Too Long, Didn't Localize. Checks game localization strings for common issues."
+    )
+    parser.add_argument("file", help="Path to JSON or CSV file of localized strings")
     parser.add_argument("--base", default="en", help="Base/source language code (default: en)")
-    parser.add_argument("--max-ratio", type=float, default=1.4,
-                         help="Max allowed length ratio (translated/base) before flagging overflow (default: 1.4)")
+    parser.add_argument(
+        "--max-ratio",
+        type=float,
+        default=1.4,
+        help="Max allowed length ratio (translated/base) before flagging overflow (default: 1.4)",
+    )
     args = parser.parse_args()
 
     try:
@@ -152,11 +226,8 @@ def main():
         print(f"Error: base language '{args.base}' not found in file. Available: {list(data.keys())}")
         sys.exit(1)
 
-    missing = check_missing_keys(data, args.base)
-    mismatches = check_placeholder_mismatches(data, args.base)
-    overflow = check_length_overflow(data, args.base, args.max_ratio)
-
-    total_issues = print_report(missing, mismatches, overflow, args.max_ratio)
+    missing, orphaned, mismatches, overflow = run_checks(data, args.base, args.max_ratio)
+    total_issues = print_report(missing, orphaned, mismatches, overflow, args.max_ratio)
 
     sys.exit(1 if total_issues > 0 else 0)
 
